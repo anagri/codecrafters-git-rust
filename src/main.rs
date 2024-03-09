@@ -2,6 +2,10 @@ use anyhow::Context;
 use clap::Parser;
 use clap::Subcommand;
 use flate2::bufread::ZlibDecoder;
+use flate2::write::ZlibEncoder;
+use flate2::Compression;
+use sha1::Digest;
+use sha1::Sha1;
 #[allow(unused_imports)]
 use std::env;
 use std::ffi::CStr;
@@ -10,6 +14,8 @@ use std::fs;
 use std::io::BufRead;
 use std::io::BufReader;
 use std::io::Read;
+use std::io::Write;
+use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -25,6 +31,11 @@ enum Command {
     #[clap(short = 'p')]
     pretty_print: bool,
     object_hash: String,
+  },
+  HashObject {
+    #[clap(short = 'w')]
+    write: bool,
+    file: PathBuf,
   },
 }
 
@@ -88,6 +99,29 @@ fn main() -> anyhow::Result<()> {
             ".git/object file not of expected size, expected: '{size}', actual: '{n}'"
           );
         }
+      }
+    }
+    Command::HashObject { write, file } => {
+      let stat = std::fs::metadata(&file).with_context(|| format!("stat {}", file.display()))?;
+      let size = format!("{}", stat.len());
+      let mut blob = Vec::<u8>::new();
+      blob.extend_from_slice(format!("blob {size}\0").as_bytes());
+      let mut f = std::fs::File::open(file).context("reading the passed file")?;
+      f.read_to_end(&mut blob).context("reading the given file")?;
+      let mut e = ZlibEncoder::new(Vec::new(), Compression::fast());
+      e.write_all(&blob)?;
+      let out = e.finish().context("completing the write")?;
+      let mut hasher = Sha1::new();
+      hasher.update(&out[..]);
+      let result = hex::encode(hasher.finalize());
+      println!("{result}");
+      if write {
+        std::fs::create_dir_all(format!(".git/objects/{}", &result[..2]))?;
+        let mut write =
+          std::fs::File::create(format!(".git/objects/{}/{}", &result[..2], &result[2..]))
+            .context("writing hashed file")?;
+        write.write_all(&out[..])?;
+        write.flush()?;
       }
     }
   }
