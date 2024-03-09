@@ -7,8 +7,11 @@ use std::env;
 use std::ffi::CStr;
 #[allow(unused_imports)]
 use std::fs;
+use std::io;
 use std::io::BufRead;
 use std::io::BufReader;
+use std::io::ErrorKind;
+use std::io::Read;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -75,6 +78,10 @@ fn main() -> anyhow::Result<()> {
       let size = size
         .parse::<u64>()
         .context(".git/objects file header has invalid size: {size}")?;
+      let mut z = LimitReader {
+        reader: z,
+        limit: size as usize,
+      };
       match kind {
         Kind::Blob => {
           let stdout = std::io::stdout();
@@ -90,4 +97,29 @@ fn main() -> anyhow::Result<()> {
     }
   }
   Ok(())
+}
+
+struct LimitReader<R> {
+  reader: R,
+  limit: usize,
+}
+
+impl<R> Read for LimitReader<R>
+where
+  R: Read,
+{
+  fn read(&mut self, mut buf: &mut [u8]) -> std::io::Result<usize> {
+    if buf.len() > self.limit {
+      buf = &mut buf[..self.limit + 1];
+    }
+    let n = self.reader.read(buf)?;
+    if n > self.limit {
+      return Err(io::Error::new(
+        ErrorKind::Other,
+        "contains more bytes than limit",
+      ));
+    }
+    self.limit -= n;
+    Ok(n)
+  }
 }
