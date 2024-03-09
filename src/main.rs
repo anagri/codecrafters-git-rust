@@ -9,8 +9,6 @@ use std::ffi::CStr;
 use std::fs;
 use std::io::BufRead;
 use std::io::BufReader;
-use std::io::Read;
-use std::io::Write;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -27,6 +25,10 @@ enum Command {
     pretty_print: bool,
     object_hash: String,
   },
+}
+
+enum Kind {
+  Blob,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -66,25 +68,25 @@ fn main() -> anyhow::Result<()> {
       let Some((kind, size)) = header.split_once(' ') else {
         anyhow::bail!(".git/objects file header did not start with a known type: '{header}'");
       };
-      if kind != "blob" {
-        anyhow::bail!("only supports reading of blob and not {kind}")
-      }
+      let kind = match kind {
+        "blob" => Kind::Blob,
+        _ => anyhow::bail!("don't support kind: '{kind}'"),
+      };
       let size = size
-        .parse::<usize>()
+        .parse::<u64>()
         .context(".git/objects file header has invalid size: {size}")?;
-      buf.clear();
-      buf.resize(size, 0);
-      z.read_exact(&mut buf[..])
-        .context("read contents of .git/objects")?;
-      let n = z
-        .read(&mut [0])
-        .context("validate EOF in .git/object file")?;
-      anyhow::ensure!(n == 0, ".git/object file had {n} trailing bytes");
-      let stdout = std::io::stdout();
-      let mut stdout = stdout.lock();
-      stdout
-        .write_all(&buf)
-        .context("write object contents to stdout")?;
+      match kind {
+        Kind::Blob => {
+          let stdout = std::io::stdout();
+          let mut stdout = stdout.lock();
+          let n =
+            std::io::copy(&mut z, &mut stdout).context("copying from .git/objects to stdout")?;
+          anyhow::ensure!(
+            n == size,
+            ".git/object file not of expected size, expected: '{size}', actual: '{n}'"
+          );
+        }
+      }
     }
   }
   Ok(())
