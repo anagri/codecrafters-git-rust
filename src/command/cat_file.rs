@@ -26,20 +26,20 @@ where
 
   fn tree(&mut self) -> anyhow::Result<()> {
     let mut entries = Vec::new();
+    let mut buf = Vec::new();
     loop {
-      let mut buf = Vec::new();
+      buf.clear();
       let n = self.reader.read_until(0, &mut buf)?;
       if n == 0 {
         break;
       }
-      let line = String::from_utf8(buf).context("malformed tree object")?;
+      let line = std::str::from_utf8(&buf.as_slice()[0..n - 1]).context("malformed tree object")?;
       let mut iter = line.split(' ');
       let _mode = iter.next().expect("malformed tree object");
       let name = iter.next().expect("malformed tree object").to_string();
       entries.push(name);
       self.reader.read_exact(&mut [0u8; 20])?; // ignore sha
     }
-    // write the entries to stdout
     for entry in entries {
       println!("{}", entry)
     }
