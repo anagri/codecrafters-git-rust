@@ -33,7 +33,9 @@ where
       if n == 0 {
         break;
       }
-      let line = std::str::from_utf8(&buf.as_slice()[0..n - 1]).context("malformed tree object")?;
+      let line = CStr::from_bytes_with_nul(&buf)
+        .context("malformed tree object")?
+        .to_str()?;
       let mut iter = line.split(' ');
       let _mode = iter.next().expect("malformed tree object");
       let name = iter.next().expect("malformed tree object").to_string();
