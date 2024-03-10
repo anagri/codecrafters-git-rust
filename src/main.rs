@@ -71,7 +71,7 @@ fn hash_object(write: bool, file: PathBuf) -> anyhow::Result<()> {
   blob.extend_from_slice(format!("blob {size}\0").as_bytes());
   let mut f = std::fs::File::open(file).context("reading the passed file")?;
   f.read_to_end(&mut blob).context("reading the given file")?;
-  let mut e = ZlibEncoder::new(Vec::new(), Compression::fast());
+  let mut e = ZlibEncoder::new(Vec::new(), Compression::default());
   e.write_all(&blob)?;
   let out = e.finish().context("completing the write")?;
   let mut hasher = Sha1::new();
