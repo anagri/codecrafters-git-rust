@@ -36,15 +36,14 @@ where
       let line = CStr::from_bytes_with_nul(&buf)
         .context("malformed tree object")?
         .to_str()?;
-      let mut iter = line.split(' ');
-      let _mode = iter.next().expect("malformed tree object");
-      let name = iter.next().expect("malformed tree object").to_string();
-      entries.push(name);
+      let line = line.to_string();
+      let (_mode, name) = line
+        .split_once(' ')
+        .ok_or(anyhow::anyhow!("malformed tree object"))?;
+      entries.push(name.to_string());
       self.reader.read_exact(&mut [0u8; 20])?; // ignore sha
     }
-    for entry in entries {
-      println!("{}", entry)
-    }
+    entries.into_iter().for_each(|entry| println!("{}", entry));
     Ok(())
   }
 }
