@@ -1,13 +1,12 @@
 mod command;
+use crate::command::common::Kind;
+use crate::command::GitObject;
 use clap::Parser;
 use clap::Subcommand;
 use command::cat_file;
 use command::hash_object;
 use command::init;
 use std::path::PathBuf;
-
-use crate::command::cat_file::read_object;
-use crate::command::common::Kind;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -57,7 +56,7 @@ fn main() -> anyhow::Result<()> {
 
 fn ls_tree(name_only: bool, object_hash: String) -> anyhow::Result<()> {
   anyhow::ensure!(name_only, "only --name-only is supported");
-  let mut git_object = read_object(object_hash)?;
+  let mut git_object = GitObject::read_object(object_hash)?;
   if git_object.kind != Kind::Tree {
     Err(anyhow::anyhow!("fatal: not a tree object"))?;
   }
