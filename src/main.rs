@@ -6,7 +6,6 @@ use flate2::write::ZlibEncoder;
 use flate2::Compression;
 use sha1::Digest;
 use sha1::Sha1;
-use std::env;
 use std::ffi::CStr;
 use std::fs;
 use std::io::BufRead;
@@ -44,7 +43,7 @@ enum Kind {
 fn main() -> anyhow::Result<()> {
   let args = Args::parse();
   // You can use print statements as follows for debugging, they'll be visible when running tests.
-  eprintln!("Logs from your program will appear here!");
+  // eprintln!("Logs from your program will appear here!");
   match args.command {
     Command::Init => init()?,
     Command::CatFile {
@@ -78,11 +77,15 @@ fn hash_object(write: bool, file: PathBuf) -> anyhow::Result<()> {
   let mut hasher = Sha1::new();
   hasher.update(&out[..]);
   let filehash = hex::encode(hasher.finalize());
+  println!("{filehash}");
   if write {
     std::fs::create_dir_all(format!(".git/objects/{}", &filehash[..2]))?;
-    let mut write =
-      std::fs::File::create(format!(".git/objects/{}/{}", &filehash[..2], &filehash[2..]))
-        .context("writing hashed file")?;
+    let mut write = std::fs::File::create(format!(
+      ".git/objects/{}/{}",
+      &filehash[..2],
+      &filehash[2..]
+    ))
+    .context("writing hashed file")?;
     write.write_all(&out[..])?;
     write.flush()?;
   }
