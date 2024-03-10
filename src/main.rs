@@ -6,6 +6,9 @@ use command::hash_object;
 use command::init;
 use std::path::PathBuf;
 
+use crate::command::cat_file::read_object;
+use crate::command::common::Kind;
+
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
@@ -26,6 +29,11 @@ enum Command {
     write: bool,
     file: PathBuf,
   },
+  LsTree {
+    #[clap(long)]
+    name_only: bool,
+    object_hash: String,
+  },
 }
 
 fn main() -> anyhow::Result<()> {
@@ -39,6 +47,20 @@ fn main() -> anyhow::Result<()> {
       object_hash,
     } => cat_file(pretty_print, object_hash)?,
     Command::HashObject { write, file } => hash_object(write, file)?,
+    Command::LsTree {
+      name_only,
+      object_hash,
+    } => ls_tree(name_only, object_hash)?,
   }
+  Ok(())
+}
+
+fn ls_tree(name_only: bool, object_hash: String) -> anyhow::Result<()> {
+  anyhow::ensure!(name_only, "only --name-only is supported");
+  let mut git_object = read_object(object_hash)?;
+  if git_object.kind != Kind::Tree {
+    Err(anyhow::anyhow!("fatal: not a tree object"))?;
+  }
+  git_object.stdout()?;
   Ok(())
 }
