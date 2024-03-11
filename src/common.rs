@@ -5,14 +5,13 @@ use sha1::Digest;
 use sha1::Sha1;
 use std::ffi::CStr;
 use std::fmt::Display;
-use std::io::BufRead;
-use std::io::BufReader;
 use std::io::Read;
 use std::io::Write;
+use std::io::{BufRead, BufReader};
 use std::path::Path;
 
 #[derive(Debug, PartialEq, Eq)]
-pub(crate) enum Kind {
+pub enum Kind {
   Blob,
   Tree,
 }
@@ -26,9 +25,9 @@ impl Display for Kind {
   }
 }
 
-pub(crate) struct GitObject {
-  pub(crate) kind: Kind,
-  pub(crate) data: Vec<u8>,
+pub struct GitObject {
+  pub kind: Kind,
+  pub data: Vec<u8>,
 }
 
 impl GitObject {
@@ -40,15 +39,15 @@ impl GitObject {
     Ok(hex::encode(hasher.finalize()))
   }
 
-  pub(crate) fn stdout(&mut self) -> anyhow::Result<()> {
+  pub(crate) fn stdout(&mut self, writer: &mut dyn Write) -> anyhow::Result<()> {
     match self.kind {
-      Kind::Blob => self.stdout_blob()?,
-      Kind::Tree => self.stdout_tree()?,
+      Kind::Blob => self.stdout_blob(writer)?,
+      Kind::Tree => self.stdout_tree(writer)?,
     }
     Ok(())
   }
 
-  fn stdout_tree(&mut self) -> anyhow::Result<()> {
+  fn stdout_tree(&mut self, writer: &mut dyn Write) -> anyhow::Result<()> {
     let mut entries = Vec::new();
     let mut buf_data = BufReader::new(&self.data[..]);
     let mut buf = Vec::new();
@@ -68,51 +67,43 @@ impl GitObject {
       entries.push(name.to_string());
       buf_data.read_exact(&mut [0u8; 20])?; // ignore sha
     }
-    entries.into_iter().for_each(|entry| println!("{}", entry));
+    entries
+      .into_iter()
+      .for_each(|entry| writeln!(writer, "{}", entry).unwrap());
     Ok(())
   }
 
-  pub(crate) fn write(&self) -> anyhow::Result<()> {
+  pub(crate) fn write(&self, repo_path: &Path) -> anyhow::Result<()> {
     let mut e = ZlibEncoder::new(Vec::new(), Compression::default());
-    e.write_all(&self.data)?;
+    e.write_all(&self.data.clone())?;
     let out = e.finish().context("completing the write")?;
     let hash = self.hash()?;
-    std::fs::create_dir_all(format!(".git/objects/{}", &hash[..2]))?;
-    let mut write = std::fs::File::create(format!(".git/objects/{}/{}", &hash[..2], &hash[2..]))
-      .context("writing hashed file")?;
+    let dest_dir = repo_path.join(format!(".git/objects/{}", &hash[..2]));
+    std::fs::create_dir_all(dest_dir.clone()).context("creating git objects directory")?;
+    let dest_file = dest_dir.join(&hash[2..]);
+    let mut write = std::fs::File::create(dest_file).context("writing hashed file")?;
     write.write_all(&out[..])?;
     write.flush()?;
     Ok(())
   }
 
-  fn stdout_blob(&self) -> anyhow::Result<()> {
-    let stdout = std::io::stdout();
-    let mut stdout = stdout.lock();
+  fn stdout_blob(&self, writer: &mut dyn Write) -> anyhow::Result<()> {
     let data = &self.data[..];
-    let mut reader = std::io::BufReader::new(data);
-    let mut buf = Vec::new();
-    reader.read_until(0, &mut buf)?;
-    let (_kind, size) = CStr::from_bytes_with_nul(&buf)
-      .context("malformed blob object")?
-      .to_str()
-      .context("malformed blob object")?
-      .split_once(' ')
-      .ok_or(anyhow::anyhow!("malformed blob object"))?;
-    let n =
-      std::io::copy(&mut reader, &mut stdout).context("copying from .git/objects to stdout")?;
-    let size = size.parse::<u64>()?;
-    anyhow::ensure!(
-      n == size,
-      ".git/object file not of expected size, expected: '{}', actual: '{}'",
-      size,
-      n
-    );
+    let mut reader = BufReader::new(data);
+    let _n = std::io::copy(&mut reader, writer).context("copying from .git/objects to stdout")?;
+    // let size = size.parse::<u64>()?;
+    // anyhow::ensure!(
+    //   n == size,
+    //   ".git/object file not of expected size, expected: '{}', actual: '{}'",
+    //   size,
+    //   n
+    // );
     Ok(())
   }
 }
 
 impl GitObject {
-  pub(crate) fn read_object(object_hash: String) -> anyhow::Result<GitObject> {
+  pub fn read_object(object_hash: &str) -> anyhow::Result<GitObject> {
     let f = std::fs::File::open(format!(
       ".git/objects/{}/{}",
       &object_hash[..2],

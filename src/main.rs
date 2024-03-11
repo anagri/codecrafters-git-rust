@@ -42,12 +42,14 @@ fn main() -> anyhow::Result<()> {
     Command::CatFile {
       pretty_print,
       object_hash,
-    } => cat_file(pretty_print, object_hash)?,
-    Command::HashObject { write, file } => hash_object(file.as_path(), &mut stdout, write)?,
+    } => cat_file(&object_hash, &mut stdout, pretty_print)?,
+    Command::HashObject { write, file } => {
+      hash_object(file.as_path(), &mut stdout, &current_dir, write)?
+    }
     Command::LsTree {
       name_only,
       object_hash,
-    } => ls_tree(name_only, object_hash)?,
+    } => ls_tree(&object_hash, &mut stdout, name_only)?,
     Command::WriteTree => write_tree(&current_dir)?,
   }
   Ok(())

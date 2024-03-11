@@ -10,7 +10,7 @@ pub fn test_hash_object() -> anyhow::Result<()> {
   let readme_path = temp_dir.join("test.md");
   let readme_path = readme_path.as_path();
   std::fs::write(readme_path, b"Hello World\n")?;
-  hash_object(readme_path, &mut stdout, false)?;
+  hash_object(readme_path, &mut stdout, temp_dir, false)?;
   assert_eq!(
     String::from_utf8(stdout.into_inner()).unwrap(),
     "557db03de997c86a4a028e1ebd3a1ceb225be238\n"
@@ -26,7 +26,7 @@ pub fn test_hash_object_write() -> anyhow::Result<()> {
   let readme_path = temp_dir.join("test.md");
   let readme_path = readme_path.as_path();
   std::fs::write(readme_path, b"Hello World\n")?;
-  hash_object(readme_path, &mut stdout, true)?;
+  hash_object(readme_path, &mut stdout, temp_dir, true)?;
   assert_eq!(
     String::from_utf8(stdout.into_inner()).unwrap(),
     "557db03de997c86a4a028e1ebd3a1ceb225be238\n"
