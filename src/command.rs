@@ -31,10 +31,11 @@ pub fn hash_object(
 pub fn cat_file(
   object_hash: &str,
   writer: &mut dyn io::Write,
+  repo_path: &Path,
   pretty_print: bool,
 ) -> anyhow::Result<()> {
   anyhow::ensure!(pretty_print, "only supports pretty print");
-  let mut git_object = GitObject::read_object(object_hash)?;
+  let git_object = GitObject::read_object(repo_path, object_hash)?;
   git_object.stdout(writer)?;
   Ok(())
 }
@@ -49,10 +50,11 @@ pub fn write_tree(repo_path: &Path) -> anyhow::Result<()> {
 pub fn ls_tree(
   object_hash: &str,
   writer: &mut dyn io::Write,
+  repo_path: &Path,
   name_only: bool,
 ) -> anyhow::Result<()> {
   anyhow::ensure!(name_only, "only --name-only is supported");
-  let mut git_object = GitObject::read_object(object_hash)?;
+  let git_object = GitObject::read_object(repo_path, object_hash)?;
   if git_object.kind != Kind::Tree {
     Err(anyhow::anyhow!("fatal: not a tree object"))?;
   }

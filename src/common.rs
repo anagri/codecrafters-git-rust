@@ -122,8 +122,9 @@ impl GitObject {
     Ok(hex::encode(hash))
   }
 
-  pub fn read_object(object_hash: &str) -> anyhow::Result<GitObject> {
+  pub fn read_object(repo_path: &Path, object_hash: &str) -> anyhow::Result<GitObject> {
     let filepath = format!(".git/objects/{}/{}", &object_hash[..2], &object_hash[2..]);
+    let filepath = repo_path.join(filepath);
     let f = std::fs::File::open(filepath).context("open in .git/objects")?;
     let f = BufReader::new(f);
     let z = ZlibDecoder::new(f);
