@@ -9,7 +9,7 @@ use std::io::BufRead;
 use std::io::BufReader;
 use std::io::Read;
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum Kind {
@@ -34,7 +34,9 @@ pub(crate) struct GitObject {
 impl GitObject {
   pub(crate) fn hash(&self) -> anyhow::Result<String> {
     let mut hasher = Sha1::new();
-    hasher.update(&self.data);
+    // let contents = String::from_utf8(self.data.clone())?;
+    // println!("contents: {}", contents);
+    hasher.update(&self.data[..]);
     Ok(hex::encode(hasher.finalize()))
   }
 
@@ -88,13 +90,21 @@ impl GitObject {
     let mut stdout = stdout.lock();
     let data = &self.data[..];
     let mut reader = std::io::BufReader::new(data);
+    let mut buf = Vec::new();
+    reader.read_until(0, &mut buf)?;
+    let (_kind, size) = CStr::from_bytes_with_nul(&buf)
+      .context("malformed blob object")?
+      .to_str()
+      .context("malformed blob object")?
+      .split_once(' ')
+      .ok_or(anyhow::anyhow!("malformed blob object"))?;
     let n =
       std::io::copy(&mut reader, &mut stdout).context("copying from .git/objects to stdout")?;
-    let len = self.data.len() as u64;
+    let size = size.parse::<u64>()?;
     anyhow::ensure!(
-      n == len,
+      n == size,
       ".git/object file not of expected size, expected: '{}', actual: '{}'",
-      len,
+      size,
       n
     );
     Ok(())
@@ -140,8 +150,8 @@ impl GitObject {
   }
 }
 
-pub(crate) fn build_file_object(file: PathBuf) -> anyhow::Result<GitObject> {
-  let stat = std::fs::metadata(&file).with_context(|| format!("stat {}", file.display()))?;
+pub(crate) fn build_file_object(file: &Path) -> anyhow::Result<GitObject> {
+  let stat = std::fs::metadata(file).with_context(|| format!("stat {}", file.display()))?;
   let size = format!("{}", stat.len());
   let mut blob = Vec::<u8>::new();
   blob.extend_from_slice(format!("blob {size}\0").as_bytes());
@@ -162,7 +172,10 @@ pub(crate) fn build_tree_object(path: &Path) -> anyhow::Result<GitObject> {
       if file_type.is_dir() {
         (entry.path(), build_tree_object(&entry.path()).unwrap())
       } else if file_type.is_file() {
-        (entry.path(), build_file_object(entry.path()).unwrap())
+        (
+          entry.path(),
+          build_file_object(entry.path().as_path()).unwrap(),
+        )
       } else {
         panic!("unsupported file type {file_type:?} for {entry:?}")
       }

@@ -43,7 +43,7 @@ fn main() -> anyhow::Result<()> {
       pretty_print,
       object_hash,
     } => cat_file(pretty_print, object_hash)?,
-    Command::HashObject { write, file } => hash_object(write, file)?,
+    Command::HashObject { write, file } => hash_object(file.as_path(), &mut stdout, write)?,
     Command::LsTree {
       name_only,
       object_hash,

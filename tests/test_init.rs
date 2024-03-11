@@ -1,12 +1,11 @@
 use git_starter_rust::command::init;
-use std::{env, io::Cursor};
+use std::io::Cursor;
 use tempdir::TempDir;
 use walkdir::WalkDir;
 
 #[test]
 pub fn test_init() -> anyhow::Result<()> {
   let temp_dir = TempDir::new("tmp_test_dir")?;
-  env::set_current_dir(&temp_dir)?;
   let mut writer = Cursor::new(Vec::new());
   init(temp_dir.path(), &mut writer)?;
   assert_eq!(

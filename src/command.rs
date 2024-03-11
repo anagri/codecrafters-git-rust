@@ -5,7 +5,6 @@ use crate::common::Kind;
 use std::fs;
 use std::io;
 use std::path::Path;
-use std::path::PathBuf;
 
 pub fn init(path: &Path, writer: &mut dyn io::Write) -> anyhow::Result<()> {
   fs::create_dir(path.join(".git"))?;
@@ -16,10 +15,10 @@ pub fn init(path: &Path, writer: &mut dyn io::Write) -> anyhow::Result<()> {
   Ok(())
 }
 
-pub fn hash_object(write: bool, file: PathBuf) -> anyhow::Result<()> {
-  let git_object = build_file_object(file)?;
+pub fn hash_object(path: &Path, writer: &mut dyn io::Write, write: bool) -> anyhow::Result<()> {
+  let git_object = build_file_object(path)?;
   let hash = git_object.hash()?;
-  println!("{hash}");
+  writeln!(writer, "{hash}")?;
   if write {
     git_object.write()?;
   }
