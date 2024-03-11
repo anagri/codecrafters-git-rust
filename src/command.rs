@@ -1,5 +1,3 @@
-use crate::common::build_file_object;
-use crate::common::build_tree_object;
 use crate::common::GitObject;
 use crate::common::Kind;
 use std::fs;
@@ -21,7 +19,7 @@ pub fn hash_object(
   repo: &Path,
   write: bool,
 ) -> anyhow::Result<()> {
-  let git_object = build_file_object(path)?;
+  let git_object = GitObject::build_file_object(path)?;
   let hash = git_object.hash()?;
   writeln!(stdout, "{hash}")?;
   if write {
@@ -42,7 +40,7 @@ pub fn cat_file(
 }
 
 pub fn write_tree(repo_path: &Path) -> anyhow::Result<()> {
-  let tree_object = build_tree_object(repo_path)?;
+  let tree_object = GitObject::build_tree_object(repo_path)?;
   tree_object.write(repo_path)?;
   println!("{}", tree_object.hash()?);
   Ok(())
