@@ -15,6 +15,15 @@ pub enum Kind {
   Blob,
   Tree,
 }
+impl Kind {
+  fn from_str(kind: &str) -> anyhow::Result<Kind> {
+    match kind {
+      "blob" => Ok(Kind::Blob),
+      "tree" => Ok(Kind::Tree),
+      _ => anyhow::bail!("don't support kind: '{kind}'"),
+    }
+  }
+}
 
 impl Display for Kind {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -34,85 +43,73 @@ pub struct GitObject {
 }
 
 impl GitObject {
-  fn blob(&self) -> anyhow::Result<Vec<u8>> {
-    let mut buf = Vec::<u8>::new();
-    buf.extend_from_slice(&self.data[..]);
-    Ok(buf)
-  }
-
   pub fn hash(&self) -> anyhow::Result<String> {
-    GitObject::_hash(&self.blob()?)
+    GitObject::_hash(&self.data)
   }
 
   pub(crate) fn write(&self, repo_path: &Path) -> anyhow::Result<()> {
-    let blob: Vec<u8> = self.blob()?;
-    let hash = GitObject::_hash(&blob)?;
+    let hash = GitObject::_hash(&self.data)?;
     let mut e = ZlibEncoder::new(Vec::new(), Compression::default());
-    e.write_all(&blob)?;
+    e.write_all(&self.data)?;
     let out = e.finish().context("completing the write")?;
     let dest_dir = repo_path.join(format!(".git/objects/{}", &hash[..2]));
     std::fs::create_dir_all(dest_dir.clone()).context("creating git objects directory")?;
     let dest_file = dest_dir.join(&hash[2..]);
     let mut write = std::fs::File::create(dest_file).context("writing hashed file")?;
-    write.write_all(&out[..])?;
+    write.write_all(&out)?;
     write.flush()?;
     Ok(())
   }
-  pub(crate) fn stdout(&mut self, writer: &mut dyn Write) -> anyhow::Result<()> {
-    match self.kind {
-      Kind::Blob => self.stdout_blob(writer)?,
-      Kind::Tree => self.stdout_tree(writer)?,
-    }
-    Ok(())
-  }
 
-  fn stdout_tree(&mut self, writer: &mut dyn Write) -> anyhow::Result<()> {
-    let mut entries = Vec::new();
-    let mut buf_data = BufReader::new(&self.data[..]);
-    let mut buf = Vec::new();
-    loop {
-      buf.clear();
-      let n = buf_data.read_until(0, &mut buf)?;
-      if n == 0 {
-        break;
-      }
-      let line = CStr::from_bytes_with_nul(&buf)
-        .context("malformed tree object")?
-        .to_str()?;
-      let line = line.to_string();
-      let (_mode, name) = line
-        .split_once(' ')
-        .ok_or(anyhow::anyhow!("malformed tree object"))?;
-      entries.push(name.to_string());
-      buf_data.read_exact(&mut [0u8; 20])?; // ignore sha
-    }
-    entries
-      .into_iter()
-      .for_each(|entry| writeln!(writer, "{}", entry).unwrap());
-    Ok(())
-  }
-
-  fn stdout_blob(&self, writer: &mut dyn Write) -> anyhow::Result<()> {
-    let data = &self.data[..];
-    let mut reader = BufReader::new(data);
+  pub(crate) fn stdout(&self, writer: &mut dyn Write) -> anyhow::Result<()> {
+    let mut reader = BufReader::new(&self.data[..]);
     let mut buf_header = Vec::<u8>::new();
     reader.read_until(0, &mut buf_header)?;
     let header = CStr::from_bytes_with_nul(&buf_header)
       .context("malformed blob object")?
       .to_str()?;
     let header = header.to_string();
-    let (_kind, size) = header
+    let (kind, size) = header
       .split_once(' ')
       .ok_or(anyhow::anyhow!("malformed blob object"))?;
     let size = size.parse::<u64>().context("malformed blob object")?;
+    let kind = Kind::from_str(kind)?;
     let mut reader = reader.take(size);
-    let n = std::io::copy(&mut reader, writer).context("copying from .git/objects to stdout")?;
-    anyhow::ensure!(
-      n == self.size,
-      ".git/object file not of expected size, expected: '{}', actual: '{}'",
-      self.size,
-      n
-    );
+    match kind {
+      Kind::Blob => {
+        let n =
+          std::io::copy(&mut reader, writer).context("copying from .git/objects to stdout")?;
+        anyhow::ensure!(
+          n == self.size,
+          ".git/object file not of expected size, expected: '{}', actual: '{}'",
+          self.size,
+          n
+        );
+      }
+      Kind::Tree => {
+        let mut buf = Vec::new();
+        let mut entries = Vec::new();
+        loop {
+          buf.clear();
+          let n = reader.read_until(0, &mut buf)?;
+          if n == 0 {
+            break;
+          }
+          let line = CStr::from_bytes_with_nul(&buf)
+            .context("malformed tree object")?
+            .to_str()?;
+          let line = line.to_string();
+          let (_mode, name) = line
+            .split_once(' ')
+            .ok_or(anyhow::anyhow!("malformed tree object"))?;
+          entries.push(name.to_string());
+          reader.read_exact(&mut [0u8; 20])?; // ignore sha
+        }
+        entries
+          .into_iter()
+          .for_each(|entry| writeln!(writer, "{}", entry).unwrap());
+      }
+    }
     Ok(())
   }
 }
@@ -196,7 +193,7 @@ impl GitObject {
         } else if file_type.is_file() {
           (
             entry.path(),
-            GitObject::build_file_object(entry.path().as_path()).unwrap(),
+            GitObject::build_file_object(&entry.path()).unwrap(),
           )
         } else {
           panic!("unsupported file type {file_type:?} for {entry:?}")
