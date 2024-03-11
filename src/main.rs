@@ -1,11 +1,8 @@
-mod command;
-use crate::command::common::Kind;
-use crate::command::GitObject;
 use clap::Parser;
 use clap::Subcommand;
-use command::cat_file;
-use command::hash_object;
-use command::init;
+use git_starter_rust::command::{cat_file, hash_object, init, ls_tree, write_tree};
+use std::env;
+use std::io::stdout;
 use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
@@ -33,14 +30,15 @@ enum Command {
     name_only: bool,
     object_hash: String,
   },
+  WriteTree,
 }
 
 fn main() -> anyhow::Result<()> {
   let args = Args::parse();
-  // You can use print statements as follows for debugging, they'll be visible when running tests.
-  // eprintln!("Logs from your program will appear here!");
+  let current_dir = env::current_dir()?;
+  let mut stdout = stdout();
   match args.command {
-    Command::Init => init()?,
+    Command::Init => init(&current_dir, &mut stdout)?,
     Command::CatFile {
       pretty_print,
       object_hash,
@@ -50,16 +48,7 @@ fn main() -> anyhow::Result<()> {
       name_only,
       object_hash,
     } => ls_tree(name_only, object_hash)?,
+    Command::WriteTree => write_tree(&current_dir)?,
   }
-  Ok(())
-}
-
-fn ls_tree(name_only: bool, object_hash: String) -> anyhow::Result<()> {
-  anyhow::ensure!(name_only, "only --name-only is supported");
-  let mut git_object = GitObject::read_object(object_hash)?;
-  if git_object.kind != Kind::Tree {
-    Err(anyhow::anyhow!("fatal: not a tree object"))?;
-  }
-  git_object.stdout()?;
   Ok(())
 }
