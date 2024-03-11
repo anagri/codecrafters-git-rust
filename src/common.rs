@@ -189,7 +189,11 @@ impl GitObject {
     }
     let mut result = std::fs::read_dir(current_path)?
       .filter_map(|entry| entry.ok())
-      .filter(|entry| !entry.path().starts_with(".git"))
+      .filter(|entry| {
+        let path = entry.path();
+        let relative = path.strip_prefix(current_path).unwrap();
+        !relative.starts_with(".git")
+      })
       .collect::<Vec<_>>();
     result.sort_by_key(|a| a.file_name());
     let result = result
