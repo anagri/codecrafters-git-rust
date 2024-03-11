@@ -27,6 +27,6 @@ pub fn test_commit() -> anyhow::Result<()> {
   )?;
 
   let actual_output = String::from_utf8(stdout.into_inner()).unwrap();
-  assert_eq!(actual_output, "6db154ed9ffeb6b30e39fac992c11de824a3408f\n");
+  assert_eq!(actual_output, "05e1fd875f25ab9683c3b40e51016abc33ee6720\n");
   Ok(())
 }

@@ -255,7 +255,7 @@ impl GitObject {
       commit_content.extend_from_slice(format!("parent {}\n", parent).as_bytes());
     }
     commit_content.extend_from_slice("author Coder <coder@crafters.io>\n".as_bytes());
-    commit_content.extend_from_slice("committer Coder <coder@crafters.io>\n".as_bytes());
+    commit_content.extend_from_slice("committer Coder <coder@crafters.io>\n\n".as_bytes());
     commit_content.extend_from_slice(message.as_bytes());
     commit_content.extend_from_slice("\n".as_bytes());
     let size = commit_content.len() as u64;
