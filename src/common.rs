@@ -43,12 +43,17 @@ pub struct GitObject {
 }
 
 impl GitObject {
-  pub fn hash(&self) -> anyhow::Result<String> {
+  pub fn hash_bytes(&self) -> anyhow::Result<[u8; 20]> {
     GitObject::_hash(&self.data)
   }
 
+  pub fn hash(&self) -> anyhow::Result<String> {
+    let hash = self.hash_bytes()?;
+    Ok(hex::encode(hash))
+  }
+
   pub(crate) fn write(&self, repo_path: &Path) -> anyhow::Result<()> {
-    let hash = GitObject::_hash(&self.data)?;
+    let hash = self.hash()?;
     let mut e = ZlibEncoder::new(Vec::new(), Compression::default());
     e.write_all(&self.data)?;
     let out = e.finish().context("completing the write")?;
@@ -115,17 +120,18 @@ impl GitObject {
 }
 
 impl GitObject {
-  fn _hash(blob: &Vec<u8>) -> anyhow::Result<String> {
+  pub fn _hash(blob: &[u8]) -> anyhow::Result<[u8; 20]> {
     let mut hasher = Sha1::new();
     hasher.update(blob);
     let hash = hasher.finalize();
-    Ok(hex::encode(hash))
+    Ok(hash.as_slice().try_into().expect("hash is always 20 bytes"))
   }
 
   pub fn read_object(repo_path: &Path, object_hash: &str) -> anyhow::Result<GitObject> {
     let filepath = format!(".git/objects/{}/{}", &object_hash[..2], &object_hash[2..]);
     let filepath = repo_path.join(filepath);
-    let f = std::fs::File::open(filepath).context("open in .git/objects")?;
+    let f = std::fs::File::open(&filepath)
+      .with_context(|| format!("opening file {}", &filepath.to_string_lossy()))?;
     let f = BufReader::new(f);
     let z = ZlibDecoder::new(f);
     let mut z = BufReader::new(z);
@@ -177,13 +183,17 @@ impl GitObject {
     })
   }
 
-  pub fn build_tree_object(path: &Path) -> anyhow::Result<GitObject> {
-    if !path.is_dir() {
-      anyhow::bail!("{} is not a directory", path.display())
+  pub fn build_tree_object(current_path: &Path) -> anyhow::Result<GitObject> {
+    if !current_path.is_dir() {
+      anyhow::bail!("{} is not a directory", current_path.display())
     }
-    let result = std::fs::read_dir(path)?
+    let mut result = std::fs::read_dir(current_path)?
       .filter_map(|entry| entry.ok())
       .filter(|entry| !entry.path().starts_with(".git"))
+      .collect::<Vec<_>>();
+    result.sort_by_key(|a| a.file_name());
+    let result = result
+      .into_iter()
       .map(|entry| {
         let file_type = entry.file_type().expect("filetype invalid");
         if file_type.is_dir() {
@@ -207,24 +217,20 @@ impl GitObject {
         Kind::Blob => "100644",
         Kind::Tree => "040000",
       };
-      output.extend_from_slice(
-        format!(
-          "{} {} {} {}\0",
-          mode,
-          entry.kind,
-          entry.hash()?,
-          path.to_string_lossy()
-        )
-        .as_bytes(),
-      );
+      let relative_path = path.strip_prefix(current_path)?;
+      output
+        .extend_from_slice(format!("{} {}\0", mode, relative_path.to_string_lossy()).as_bytes());
+      output.extend_from_slice(&entry.hash_bytes()?);
     }
     let size = output.len() as u64;
-    let header = format!("tree {}\0", size);
-    output.splice(0..0, header.as_bytes().iter().cloned());
+    let header = format!("tree {}\x00", size);
+    let mut data = Vec::<u8>::new();
+    data.extend_from_slice(header.as_bytes());
+    data.extend_from_slice(&output[..]);
     Ok(GitObject {
       kind: Kind::Tree,
       size,
-      data: output,
+      data,
       _private: (),
     })
   }

@@ -40,10 +40,10 @@ pub fn cat_file(
   Ok(())
 }
 
-pub fn write_tree(repo_path: &Path) -> anyhow::Result<()> {
+pub fn write_tree(repo_path: &Path, stdout: &mut dyn io::Write) -> anyhow::Result<()> {
   let tree_object = GitObject::build_tree_object(repo_path)?;
   tree_object.write(repo_path)?;
-  println!("{}", tree_object.hash()?);
+  writeln!(stdout, "{}", tree_object.hash()?)?;
   Ok(())
 }
 

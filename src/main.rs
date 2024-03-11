@@ -50,7 +50,7 @@ fn main() -> anyhow::Result<()> {
       name_only,
       object_hash,
     } => ls_tree(&object_hash, &mut stdout, &current_dir, name_only)?,
-    Command::WriteTree => write_tree(&current_dir)?,
+    Command::WriteTree => write_tree(&current_dir, &mut stdout)?,
   }
   Ok(())
 }
