@@ -61,3 +61,16 @@ pub fn ls_tree(
   git_object.stdout(writer)?;
   Ok(())
 }
+
+pub fn commit_tree(
+  tree_hash: String,
+  stdout: &mut dyn io::Write,
+  repo_path: &Path,
+  message: &str,
+  parent: Option<String>,
+) -> anyhow::Result<()> {
+  let commit_tree = GitObject::build_commit_object(&tree_hash, repo_path, message, parent)?;
+  commit_tree.write(repo_path)?;
+  writeln!(stdout, "{}", commit_tree.hash()?)?;
+  Ok(())
+}

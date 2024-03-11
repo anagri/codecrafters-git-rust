@@ -14,13 +14,14 @@ use std::path::Path;
 pub enum Kind {
   Blob,
   Tree,
+  Commit,
 }
 impl Kind {
   fn from_str(kind: &str) -> anyhow::Result<Kind> {
     match kind {
       "blob" => Ok(Kind::Blob),
       "tree" => Ok(Kind::Tree),
-      _ => anyhow::bail!("don't support kind: '{kind}'"),
+      _ => anyhow::bail!("should not be called for: '{kind}'"),
     }
   }
 }
@@ -30,6 +31,7 @@ impl Display for Kind {
     match self {
       Kind::Blob => write!(f, "blob"),
       Kind::Tree => write!(f, "tree"),
+      Kind::Commit => write!(f, "commit"),
     }
   }
 }
@@ -52,7 +54,7 @@ impl GitObject {
     Ok(hex::encode(hash))
   }
 
-  pub(crate) fn write(&self, repo_path: &Path) -> anyhow::Result<()> {
+  pub fn write(&self, repo_path: &Path) -> anyhow::Result<()> {
     let hash = self.hash()?;
     let mut e = ZlibEncoder::new(Vec::new(), Compression::default());
     e.write_all(&self.data)?;
@@ -114,6 +116,7 @@ impl GitObject {
           .into_iter()
           .for_each(|entry| writeln!(writer, "{}", entry).unwrap());
       }
+      Kind::Commit => anyhow::bail!("stdout not implemented for commit object"),
     }
     Ok(())
   }
@@ -220,6 +223,7 @@ impl GitObject {
       let mode = match entry.kind {
         Kind::Blob => "100644",
         Kind::Tree => "40000",
+        Kind::Commit => anyhow::bail!("permission not required for commit object"),
       };
       let relative_path = path.strip_prefix(current_path)?;
       output
@@ -233,6 +237,33 @@ impl GitObject {
     data.extend_from_slice(&output[..]);
     Ok(GitObject {
       kind: Kind::Tree,
+      size,
+      data,
+      _private: (),
+    })
+  }
+
+  pub fn build_commit_object(
+    tree_hash: &str,
+    repo_path: &Path,
+    message: &str,
+    parent: Option<String>,
+  ) -> anyhow::Result<GitObject> {
+    let tree_object = GitObject::read_object(repo_path, tree_hash)?;
+    let mut commit_content = Vec::from(format!("tree {}\n", tree_object.hash()?).as_bytes());
+    if let Some(parent) = parent {
+      let parent_object = GitObject::read_object(repo_path, &parent)?;
+      commit_content.extend_from_slice(format!("parent {}\n", parent_object.hash()?).as_bytes());
+    }
+    commit_content.extend_from_slice("author Coder <coder@crafters.io>\n".as_bytes());
+    commit_content.extend_from_slice("committer Coder <coder@crafters.io>\n".as_bytes());
+    commit_content.extend_from_slice(message.as_bytes());
+    commit_content.extend_from_slice("\n".as_bytes());
+    let size = commit_content.len() as u64;
+    let mut data = Vec::from(format!("commit {}\x00", size).as_bytes());
+    data.extend_from_slice(&commit_content);
+    Ok(GitObject {
+      kind: Kind::Commit,
       size,
       data,
       _private: (),

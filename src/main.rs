@@ -1,5 +1,6 @@
 use clap::Parser;
 use clap::Subcommand;
+use git_starter_rust::command::commit_tree;
 use git_starter_rust::command::{cat_file, hash_object, init, ls_tree, write_tree};
 use std::env;
 use std::io::stdout;
@@ -31,6 +32,13 @@ enum Command {
     object_hash: String,
   },
   WriteTree,
+  CommitTree {
+    #[clap(short = 'm')]
+    message: String,
+    #[clap(short = 'p')]
+    parent: Option<String>,
+    tree_hash: String,
+  },
 }
 
 fn main() -> anyhow::Result<()> {
@@ -51,6 +59,11 @@ fn main() -> anyhow::Result<()> {
       object_hash,
     } => ls_tree(&object_hash, &mut stdout, &current_dir, name_only)?,
     Command::WriteTree => write_tree(&current_dir, &mut stdout)?,
+    Command::CommitTree {
+      message,
+      tree_hash,
+      parent,
+    } => commit_tree(tree_hash, &mut stdout, &current_dir, &message, parent)?,
   }
   Ok(())
 }
