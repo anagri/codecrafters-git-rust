@@ -14,10 +14,10 @@ pub fn test_write_tree() -> anyhow::Result<()> {
   let mut stdout = std::io::Cursor::new(Vec::<u8>::new());
 
   let tree_obj = GitObject::build_tree_object(temp_dir)?;
-  let mut content = Vec::from("tree 75\x00100644 root_file.txt\x00".as_bytes());
+  let mut content = Vec::from("tree 74\x00100644 root_file.txt\x00".as_bytes());
   let root_file_obj = GitObject::build_file_object(&root_file)?;
   content.extend_from_slice(&root_file_obj.hash_bytes()?);
-  content.extend_from_slice("040000 subdir\x00".as_bytes());
+  content.extend_from_slice("40000 subdir\x00".as_bytes());
   let subdir_obj = GitObject::build_tree_object(&subdir)?;
   content.extend_from_slice(&subdir_obj.hash_bytes()?);
   assert_eq!(tree_obj.data, &content[..]);

@@ -219,7 +219,7 @@ impl GitObject {
     for (path, entry) in result {
       let mode = match entry.kind {
         Kind::Blob => "100644",
-        Kind::Tree => "040000",
+        Kind::Tree => "40000",
       };
       let relative_path = path.strip_prefix(current_path)?;
       output

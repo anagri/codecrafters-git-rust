@@ -72,12 +72,12 @@ pub fn test_tree_object() -> anyhow::Result<()> {
 
   let tree_object = GitObject::build_tree_object(temp_dir)?;
   assert_eq!(tree_object.kind, Kind::Tree);
-  let mut expected_data = Vec::from("tree 75\x00100644 root_file.txt\x00".as_bytes());
+  let mut expected_data = Vec::from("tree 74\x00100644 root_file.txt\x00".as_bytes());
   expected_data.extend_from_slice(&GitObject::_hash(
     "blob 18\x00root file content\n".as_bytes(),
   )?);
   let subdir_tree = GitObject::build_tree_object(&subdir)?;
-  expected_data.extend_from_slice("040000 subdir\x00".as_bytes());
+  expected_data.extend_from_slice("40000 subdir\x00".as_bytes());
   expected_data.extend_from_slice(&subdir_tree.hash_bytes()?);
   assert_eq!(tree_object.data, &expected_data[..]);
   Ok(())
