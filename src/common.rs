@@ -252,8 +252,7 @@ impl GitObject {
     let tree_object = GitObject::read_object(repo_path, tree_hash)?;
     let mut commit_content = Vec::from(format!("tree {}\n", tree_object.hash()?).as_bytes());
     if let Some(parent) = parent {
-      let parent_object = GitObject::read_object(repo_path, &parent)?;
-      commit_content.extend_from_slice(format!("parent {}\n", parent_object.hash()?).as_bytes());
+      commit_content.extend_from_slice(format!("parent {}\n", parent).as_bytes());
     }
     commit_content.extend_from_slice("author Coder <coder@crafters.io>\n".as_bytes());
     commit_content.extend_from_slice("committer Coder <coder@crafters.io>\n".as_bytes());
